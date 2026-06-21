@@ -1,6 +1,7 @@
+import os
 import sqlite3
 from contextlib import contextmanager
-DB_PATH= "v2_db.db"
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v2_db.db")
 
 @contextmanager
 def get_conn():

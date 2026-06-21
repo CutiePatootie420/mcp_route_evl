@@ -1,19 +1,22 @@
-from sentence_transformers import SentenceTransformer
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-from database import init_db,get_conn,DB_PATH
 import os
+from download_onnx import ONNXEmbedder
+
+model=ONNXEmbedder()
+
+from database import init_db,DB_PATH
+
 import numpy as np
 
 if not os.path.isfile(DB_PATH):
     init_db()
 
 from indexer import run_indexer
-indexing_needed=1
+indexing_needed=0
 if(indexing_needed):
     run_indexer(model,os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"data"))
 
 from train_router import train_and_save_neuron,testing_show
-training_needed=1
+training_needed=0
 test_show=0
 neuron_path="router_config.npz"
 if(training_needed):
