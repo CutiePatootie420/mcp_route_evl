@@ -29,6 +29,7 @@ n_data= np.load(neuron_path)
 weights = n_data["w"]
 bias = n_data["b"]
 
+'''
 from router import predict_cloud_prob
 from retrieval import search_locally
 def prompt_query():
@@ -48,5 +49,67 @@ else:
         print("\n--- Best Local Match ---")
         print(f"File Source: {best_path}")
         print(f"Similarity Score: {max_sim:.4f}")
-        print(f"Content: {best_string}\n")
+        print(f"Content: {best_string}\n")'''
+
+from router import predict_cloud_prob
+from retrieval import search_locally
+from PySide6.QtWidgets import QApplication
+from gui import SearchWidget
+
+def search_engine_callback(query):
+    query_vec=model.encode(query)
+    escalation_prob=predict_cloud_prob(query_vec,weights,bias)
+
+    if(escalation_prob>=0.5):
+        return """
+                <div style='background-color: rgba(10, 132, 255, 0.12); border: 1px solid rgba(10, 132, 255, 0.25); border-radius: 8px; padding: 14px;'>
+                  <div style='color: #0A84FF; font-weight: 600; font-size: 14px; font-family: .AppleSystemUIFont, sans-serif;'>☁️ Escalating to Cloud AI</div>
+                  <div style='color: #CCCCCC; font-size: 13px; font-family: .AppleSystemUIFont, sans-serif; margin-top: 6px; line-height: 1.4;'>
+                    This is a complex query requiring synthetic reasoning. Routing to cloud model...
+                  </div>
+                </div>
+                """
+    max_sim,best_string,best_path=search_locally(query_vec)
+    local_threshold=0.20
+
+    if(max_sim<local_threshold):
+        return f"""
+                <div style='background-color: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255, 69, 58, 0.25); border-radius: 8px; padding: 14px;'>
+                  <div style='color: #FF453A; font-weight: 600; font-size: 14px; font-family: .AppleSystemUIFont, sans-serif;'>⚠️ Low Confidence Local Search ({max_sim:.4f})</div>
+                  <div style='color: #CCCCCC; font-size: 13px; font-family: .AppleSystemUIFont, sans-serif; margin-top: 6px; line-height: 1.4;'>
+                    No matching local knowledge was found in the database. Escalating to cloud model...
+                  </div>
+                </div>
+                """
+
+    file_name=os.path.basename(best_path) if best_path else "Unknown File"
+    clean_text=best_string.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+    return f"""
+        <div style='font-family: .AppleSystemUIFont, sans-serif;'>
+          <div style='margin-bottom: 10px;'>
+            <span style='color: #8E8E93; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;'>LOCAL MATCH</span>
+            <span style='color: #30D158; font-size: 11px; margin-left: 8px; font-weight: 600; background-color: rgba(48, 209, 88, 0.15); padding: 2px 6px; border-radius: 4px;'>Score: {max_sim:.4f}</span>
+          </div>
+
+          <div style='color: #0A84FF; font-size: 16px; font-weight: 600; margin-bottom: 4px;'>
+            📄 {file_name}
+          </div>
+
+          <div style='color: #8E8E93; font-size: 12px; margin-bottom: 14px;'>
+            Source: <code style='background-color: rgba(255,255,255,0.06); padding: 2px 5px; border-radius: 4px;'>{best_path}</code>
+          </div>
+
+          <div style='background-color: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px; color: #E5E5E5; font-size: 13.5px; line-height: 1.5;'>{clean_text}</div>
+        </div>
+        """
+
+import sys
+if __name__=="__main__":
+    app=QApplication(sys.argv)
+    widget=SearchWidget()
+    widget.search_callback=search_engine_callback
+    widget.show()
+    sys.exit(app.exec())
+
+
 
