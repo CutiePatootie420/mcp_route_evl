@@ -68,10 +68,14 @@ def search_engine_callback(query):
                   <div style='color: #CCCCCC; font-size: 13px; font-family: .AppleSystemUIFont, sans-serif; margin-top: 6px; line-height: 1.4;'>
                     This is a complex query requiring synthetic reasoning. Routing to cloud model...
                   </div>
+                  <div style='margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;'>
+                    <a href='action://correct_routing' style='color: #8E8E93; font-size: 11px; text-decoration: none; font-family: sans-serif; font-weight: bold;'>🔄 Reroute: Process Locally</a>
+                  </div>
                 </div>
+
                 """
     max_sim,best_string,best_path=search_locally(query_vec,query)
-    local_threshold=0.20
+    local_threshold=0.25
 
     if(max_sim<local_threshold):
         return f"""
@@ -79,6 +83,9 @@ def search_engine_callback(query):
                   <div style='color: #FF453A; font-weight: 600; font-size: 14px; font-family: .AppleSystemUIFont, sans-serif;'>⚠️ Low Confidence Local Search ({max_sim:.4f})</div>
                   <div style='color: #CCCCCC; font-size: 13px; font-family: .AppleSystemUIFont, sans-serif; margin-top: 6px; line-height: 1.4;'>
                     No matching local knowledge was found in the database. Escalating to cloud model...
+                  </div>
+                  <div style='margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;'>
+                    <a href='action://correct_routing' style='color: #8E8E93; font-size: 11px; text-decoration: none; font-family: sans-serif; font-weight: bold;'>☁️ Reroute: Escalate to Cloud</a>
                   </div>
                 </div>
                 """
@@ -91,16 +98,17 @@ def search_engine_callback(query):
             <span style='color: #8E8E93; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;'>LOCAL MATCH</span>
             <span style='color: #30D158; font-size: 11px; margin-left: 8px; font-weight: 600; background-color: rgba(48, 209, 88, 0.15); padding: 2px 6px; border-radius: 4px;'>Score: {max_sim:.4f}</span>
           </div>
-
           <div style='color: #0A84FF; font-size: 16px; font-weight: 600; margin-bottom: 4px;'>
             📄 {file_name}
           </div>
-
           <div style='color: #8E8E93; font-size: 12px; margin-bottom: 14px;'>
             Source: <code style='background-color: rgba(255,255,255,0.06); padding: 2px 5px; border-radius: 4px;'>{best_path}</code>
           </div>
-
           <div style='background-color: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px; color: #E5E5E5; font-size: 13.5px; line-height: 1.5;'>{clean_text}</div>
+          
+          <div style='margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;'>
+            <a href='action://correct_routing' style='color: #8E8E93; font-size: 11px; text-decoration: none; font-family: sans-serif; font-weight: bold;'>☁️ Reroute: Escalate to Cloud</a>
+          </div>
         </div>
         """
 
@@ -119,6 +127,24 @@ def create_status_icon(color_hex):
     painter.drawEllipse(4, 4, 16, 16)
     painter.end()
     return QIcon(pixmap)
+
+import csv
+from train_router import sigmoid_func
+def routing_correction(query):
+    global weights,bias,n_data
+    z=np.dot(model.encode(query),weights)+bias
+    curr_prediction=sigmoid_func(z)
+    curr_prediction=0 if curr_prediction<0.5 else 1
+    row=[query,1 if curr_prediction==0 else 0]
+    if os.path.exists(neuron_path):
+        os.remove(neuron_path)
+    with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"router_queries.csv"),mode="a",newline="",encoding="utf-8") as file:
+        writer=csv.writer(file)
+        writer.writerow(row)
+    train_and_save_neuron(neuron_path,model,500,0.1,0.3)
+    n_data=np.load(neuron_path)
+    weights=n_data["w"]
+    bias=n_data["b"]
 
 
 if __name__=="__main__":
@@ -152,6 +178,7 @@ if __name__=="__main__":
 
     widget=SearchWidget()
     widget.search_callback=search_engine_callback
+    widget.routing_correction_callback=routing_correction
     tray.activated.connect(lambda reason: widget.toggle_visibility() if reason == QSystemTrayIcon.Trigger else None)
     menu = QMenu()
     show_action = menu.addAction("Show Search Widget")

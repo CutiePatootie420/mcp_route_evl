@@ -114,6 +114,8 @@ class SearchWidget(QFrame):
         # Results viewer QTextBrowser (hidden by default)
         self.result_viewer = QTextBrowser()
         self.result_viewer.setFont(QFont(".AppleSystemUIFont", 14))
+        self.result_viewer.setOpenLinks(False)
+        self.result_viewer.anchorClicked.connect(self.on_anchor_clicked)
         self.result_viewer.hide()
         self.container_layout.addWidget(self.result_viewer)
         
@@ -192,6 +194,7 @@ class SearchWidget(QFrame):
 
         # Initialize search callback
         self.search_callback = None
+        self.routing_correction_callback = None
 
         # Debounce timer for search typing (500ms delay)
         self.debounce_timer = QTimer(self)
@@ -277,6 +280,13 @@ class SearchWidget(QFrame):
             self.show_results(html_content)
         else:
             self.clear_results()
+
+    def on_anchor_clicked(self, url):
+        if url.toString() == "action://correct_routing":
+            query = self.search_input.text().strip()
+            if query and self.routing_correction_callback:
+                self.routing_correction_callback(query)
+                self.execute_search()
 
 if __name__ == "__main__":
     print("Starting Terminal AI Assistant (Spotlight Widget)...")
